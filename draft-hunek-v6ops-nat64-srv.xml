@@ -1,0 +1,416 @@
+<?xml version="1.0" encoding="US-ASCII"?>
+<!DOCTYPE rfc SYSTEM "rfc2629.dtd" [
+<!ENTITY RFC2119 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.2119.xml">
+<!ENTITY RFC2782 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.2782.xml">
+<!ENTITY RFC6052 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.6052.xml">
+<!ENTITY RFC6146 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.6146.xml">
+<!ENTITY RFC6877 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.6877.xml">
+<!ENTITY RFC7050 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.7050.xml">
+<!ENTITY RFC7225 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.7225.xml">
+<!ENTITY RFC8106 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.8106.xml">
+<!ENTITY RFC8115 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.8115.xml">
+<!ENTITY RFC8174 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.8174.xml">
+<!ENTITY RFC8484 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.8484.xml">
+<!ENTITY RFC8781 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.8781.xml">
+<!ENTITY RFC8880 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.8880.xml">
+]>
+<?xml-stylesheet type='text/xsl' href='rfc2629.xslt' ?>
+<?rfc strict="yes"?>
+<?rfc toc="yes"?>
+<?rfc tocdepth="4"?>
+<?rfc symrefs="yes"?>
+<?rfc sortrefs="yes"?>
+<?rfc compact="yes"?>
+<?rfc subcompact="no"?>
+<rfc category="std" docName="draft-hunek-v6ops-nat64-srv-00" 
+  ipr="trust200902">
+
+<front>
+  <title abbrev="NAT64 SRV">NAT64/DNS64 detection via SRV Records</title>
+
+  <author fullname="Martin Hunek" initials="M" surname="Hunek">
+    <organization>Technical University of Liberec</organization>
+    <address>
+      <postal>
+        <street>Studentska 1402/2</street>
+        <city>Liberec</city>
+        <code>46017</code>
+        <country>CZ</country>
+      </postal>
+      <email>martin.hunek@tul.cz</email>
+    </address>
+  </author>
+
+  <date month="November" year="2021"/>
+
+  <area>Internet</area>
+
+  <workgroup>IPv6 Operations</workgroup>
+
+  <keyword>NAT64 prefix detection</keyword>
+  <keyword>NAT64</keyword>
+  <keyword>DNS64</keyword>
+  <keyword>DNS</keyword>
+  <keyword>Third party resolver</keyword>
+
+  <abstract>
+    <t>This document specifies how to discover the NAT64 pools in use and DNS servers providing DNS64 service to the local clients. The discovery made via SRV records allows the assignment of priorities to the NAT64 pools and DNS64 servers. It also allows clients to have different DNS providers than NAT64 providers while providing a secure way via DNSSEC validation of provided SRV records. This way, it provides DNS64 service regardless of DNS operator and DNS transport protocol.</t>
+
+  </abstract>
+</front>
+
+<middle>
+  <section title="Introduction">
+      <t>The slower than expected adoption of the IPv6 resulted in the need for reliable transition mechanisms that shut down legacy protocols in the early adopters' network without waiting for latecomers. The transition mechanisms like NAT64/DNS64 or 464XLAT <xref target="RFC6877"/> are essential in the transition between dual-stack networks and IPv6-only networks while not sacrificing the accessibility of the IPv4-only services. It is essential for these transition mechanisms to reliably and securely detect prefixes used for translation. Failing to do so, the IPv4-only services would not be accessible, or the traffic for these services could be kidnapped.</t>
+      
+      <t>There are multiple solutions for detecting NAT64 prefixes, but none of those are without problems and can fit different applications' needs. This document describes a new DNS-based method that could replace the method standardized by <xref target="RFC7050"/> and lately updated by <xref target="RFC8880"/>, as this method is incompatible with DNSSEC and does have unrealistic prerequisites.</t>
+  
+    <section title="Requirements Language">
+      <t>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL 
+        NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", 
+        "MAY", and "OPTIONAL" in this document are to be interpreted as 
+        described in BCP 14 <xref target="RFC2119"/> 
+        <xref target="RFC8174"/> when, and only when, they appear in 
+        all capitals, as shown here.</t>
+    </section>
+  </section>
+
+  <section title="Terminology">
+      <t>CLAT: Customer-side translator as defined in <xref target="RFC6877"/>.</t>
+      
+      <t>Node: Either physical device or an application capable of performing DNS queries.</t>
+      
+    <t>NAT64 FQDN: a fully qualified domain name (FQDN) for a NAT64 protocol translator.</t>
+
+    <t>Pref64::/n: a IPv6 prefix used for IPv6 address synthesis <xref target="RFC6146"/>.</t>
+
+    <t>Pref64::WKA: an IPv6 address consisting of Pref64::/n and WKA at any of the locations 
+                    allowed by RFC 6052 <xref target="RFC6052"/>.</t>
+
+    <t>Secure Channel: a communication channel a Node has between itself and a DNS64 server protecting DNS protocol-related messages from interception and tampering. The Channel can be, for example, IPsec-based virtual private network (VPN) tunnel or a link-layer utilizing data encryption technologies.</t>
+
+    <t>Well-Known IPv4 Address (WKA): an IPv4 address that is well-known and present in an A record
+       for the well-known name as defined in <xref target="RFC7050"/>.</t>  
+
+  </section>
+  
+  <section title="Problems with Current Solutions"
+           anchor="comparison">
+      <t>For means of comparison, current solutions are split into two groups. The first one is the DNS-based solutions and the second one are solutions based on other protocols.</t>
+      
+      <section title="DNS-based method">
+          <t>The DNS based method is represented by the current method of <xref target="RFC7050"/> updated by the <xref target="RFC8880"/>. This method uses the Well-Known Name 'ipv4only.arpa.' with only an A record to detect DNS64 service. As this method depends on a specific DNS64 capable resolver with a specific NAT64 prefix, a client has to use the resolver provided by the NAT64 service provider. Furthermore, information about the NAT64 prefix in use is distributed only locally, so the third-party resolvers have no information about it, so they cannot provide DNS64 service for them.</t>
+          
+          <t>With the introduction of the DNS-over-HTTPS (DoH) <xref target="RFC8484"/>, the introduction of the third-party resolver made the <xref target="RFC7050"/> unusable for clients using DoH. There is a quick fix provided by the <xref target="RFC8880"/> that the Well-Known name should be treated differently - resolved by autoconfigured resolver on a specific outbound interface only. However, this would mean that the application/system stub resolver has to keep track of the source of configured DNS resolvers, which may be an unrealistic expectation.</t>
+          
+          <t>Another design property of the <xref target="RFC7050"/> is its incompatibility with the DNSSEC. In order for <xref target="RFC7050"/> to work, the DNSSEC has to be turned off, and even the detection phase of this method could not use it to verify the provided information. As the network operator does not own the 'arpa.' domain, it cannot properly sign the AAAA record for the Well-Known Name. Because of it, the first step of the NAT64 prefix detection is always insecure.</t>
+          
+          <t>In order for <xref target="RFC7050"/> method to be secure, this method requires these prerequisites:
+              <list style="symbols">
+                  <t>DNSSEC signed NAT64 FQDN</t>
+                  <t>Corresponding PTR</t>
+                  <t>Secure Channel between Node and resolver</t>
+                  <t>Trusted domain list</t>
+                  <t>No user input</t>
+              </list>
+          </t>
+          
+          <t>The <xref target="RFC8880"/> adds another set of prerequisites:
+              <list style="symbols">
+                  <t>Stub resolver must distinguish between configuration sources of recursive DNS</t>
+                  <t>Only autoconfiguration sources can provide recursive DNS to resolve Well-Known Name</t>
+                  <t>Recursive DNS resolver is interface specific</t>
+              </list>
+          </t>
+          
+          <t>Some of these listed prerequisites cannot be achieved in certain networks without prior provisioning of the Node. This includes recommended secure channel between a Node and DNS64 recursive resolver on shared network segments and the Trusted Domain List mandatory requirement that implicitly cannot be entered by a user. As not every Node is provisioned by a network operator, especially in smaller networks, and the generation process of the Trusted Domain List is not defined. The implementations of the <xref target="RFC7050"/> seems to ignore this requirement. However, without it, these implementations are insecure. This is due to the fact that the path between a Node and a resolver cannot be secured by the DNSSEC, and without Trusted Domain List, any arbitrary data can be injected into a Node configuration.</t>
+          
+          <t>Requirements of the <xref target="RFC8880"/> are also hard to implement strictly according to standard. The user-space application vendor that implements its own stub resolver would like to implement <xref target="RFC8880"/> it would require access to the information about network configuration to keep track of which recursive DNS server has been received from which interface and from which protocol. Presenting such information to the user-space is not typical and requires system-level changes. Furthermore, when strictly following the <xref target="RFC8880"/>, the network cannot use static configuration to have NAT64 functionality autoconfigured from the DNS.</t>
+          
+      </section>
+      
+      <section title="Methods based on other protocols">
+          <t>There are other solutions for detecting NAT64 prefixes based on various protocols. Namely <xref target="RFC7225"/>, <xref target="RFC8115"/> and <xref target="RFC8781"/>. Regardless of the protocol used, these solutions have some common properties that limit their user-space use. If an application vendor would like to implement any of these methods, it would need to include a client implementation of an underlying protocol, or the system would need to provide an interface to obtain NAT64 prefix detected by these methods to the user-space application. This is much harder than making a DNS query inside an application.</t>
+          
+          <t>Another common property of these methods is an expectation of local DNS64 synthesis or CLAT presence on a Node. This may be the case for some Nodes, but others may depend on this functionality from the DNS64 resolver. For such Nodes, the DNS-based detection mechanism could be the preferred solution.</t>
+          
+          <t>It is fair to say that these methods are viable solutions for system-level NAT64 prefix detection - implementations of a system DNS stub resolver or CLAT daemon. These methods are not so easy to implement for user-space applications and daemons that are not so tightly integrated into an operating system.</t>
+      </section>
+  </section>
+  
+  <section title="Local domain detection"
+           anchor="domain">
+      <t>The Node should perform detection of the domain used by the network operator. A Node MAY use any source of such information, but a Node implementing the method described in this document MUST be able to use the PTR record for Node's unicast address as one of such source.</t>
+      
+      <t>A network operator that uses the method described in this document to distribute NAT64 configuration to Nodes connected to its network MUST provide a PTR record for every IPv6 address handed to the Node. The PTR record MUST have valid DNSSEC signature and MUST point to securely delegated zone with DNSSEC signed NAT64 SRV record. The SRV record itself MUST point to DNSSEC signed AAAA record and MAY also point to DNSSEC signed A record.</t>
+      
+      <t>Both Node and a network operator MAY use other sources of information about a local domain. If they decide to do so, the channel to provide such information MUST be secured against undetected data manipulation, as these sources may not provide the same level of security as the DNSSEC signed PTR record.</t>
+      
+      <t>Other sources of information about local domain MAY include (but are not limited to):
+          <list style="symbols">
+              <t>Node's FQDN</t>
+              <t>Router Advertisement DNSSL option <xref target="RFC8106"/></t>
+              <t>DHCPv6 options: 57, 24, 39, 74 or 118</t>
+          </list>
+      </t>
+  </section>
+
+  <section title="NAT64 service SRV record"
+    anchor="nat64_srv">
+    <t>This document specifies two new well-known SRV records. The one for NAT64 prefix which Node MUST implement:</t>
+    
+    <t>_nat64._ipv6.Name TTL Class SRV Priority Weight Port Target
+    </t>
+    
+    <t>The TTL, Class, Priority, and Weight follow the same scheme as defined in <xref target="RFC2782"/> and have their standard meaning.</t>
+    
+    <t>Port: IPv6 as L3 protocol does not use port numbers. Because of that, this field SHOULD be either set to zero or SHOULD be used to indicate the length of network prefix length in both IPv6 and IPv4 protocol, used for NAT64. In such a case, the port 16b integer MUST be constructed by directly appending IPv4 pool prefix length after the IPv6 prefix length decimally. Usually, this would mean 9632, stating that the IPv6 prefix with a length of /96 is translated into a single IPv4 address (/32).</t>
+    
+    <t>Target: MUST point to AAAA record formed from Pref64::/n prefix and WKA same way as in <xref target="RFC7050"/> (Pref64::WKA). The target MAY also point to A record, in which case it SHOULD point to the IPv4 address used for NAT64 (or base address of the NAT64 IPv4 prefix). A network operator MAY indicate to Node that NAT64 service is not provided by putting root domain target (".") into the SRV record. The Port field value should be set to zero for such a record, and Node MUST stop further NAT64 prefix detection for a given domain.</t>
+    
+    <t>Note: The target MAY also point to AAAA record of Any-Source Multicast prefix or Source-Specific Multicast prefix, similarly to <xref target="RFC8115"/> this MAY be used to indicate a Node prefix used for multicast translation. For this reason, a Node MUST check address type before its use. One SRV record MUST NOT combine unicast and multicast targets, and in the case of a multicast target, the Port field value MUST be set to a value of 9600, and A record target MUST be ignored by a Node.</t>
+
+  </section>
+  
+  <section title="DNS64 service SRV record"
+    anchor="dns64_srv">
+    <t>The second SRV record is for the discovery of the DNS64 service. Support of this record is OPTIONAL, but Node SHOULD implement it.</t>
+    
+    <t>_dns64.Protocol.Name TTL Class SRV Priority Weight Port Target
+    </t>
+    
+    <t>Record informs about location of DNS64 service. This record might be used if the network operator does not want to deploy DNS64 in their main DNS infrastructure. A DNS64 SRV record follows the rules specified by <xref target="RFC2782"/> and does not modify the meaning of any field.</t>
+    
+    <t>Server provided by this record SHOULD only be used for domain names which have returned NODATA for AAAA record and for A record queries when a Node is not performing DNS64 function and is not using CLAT.</t>
+
+  </section>
+  
+  <section title="Node Behavior"
+    anchor="node">
+    <t>In the initial stage of the Node connected to the network - after the Node is configured with an IP address; the Node MUST get local domains used in the network. The method of obtaining such information is described in the section <xref target="domain" format="title"/>. When no local domain can be discovered, the Node SHOULD continue NAT64/DNS64 detection by other means.</t>
+    
+    <t>After the list of local domains has been established, the Node MUST query for a NAT64 SRV record for every domain in the list. The result of such queries SHOULD be ordered by following the rules of <xref target="RFC2782"/>. When multiple records have equal values of both priority and weight, the records SHOULD maintain the same order as its domain in the discovered domain list.</t>
+    
+    <t>If a Node is not configured to perform DNS64 address synthesis and is not using CLAT, it SHOULD perform a query for DNS64 SRV record for every discovered domain with NAT64 SRV record. If such a record is obtained, the Node SHOULD use preferred target of DNS64 SRV record to query for FQDNs without AAAA record - when Node received NODATA response for its query. Similarly, such Node SHOULD prefer target of DNS64 SRV record for any A record query (like caused by Happy Eye-Balls).</t>
+    
+    <t>If the Node can validate DNS records via DNSSEC, the Node MUST perform validation of NAT64/DNS64 SRV record. The default behavior of Node SHOULD be to ignore any NAT64/DNS64 SRV records which cannot be validated or did not pass the validation.</t>
+    
+    <t>Any information received from DNS MUST respect TTL of received records. The Node MUST perform a new detection before currently used information expires. This also applies to information received from other sources that include expiration.</t>
+
+    <section title="Interaction with other methods">
+        <t>Proposed method does not aim to replace all other NAT64 prefix detection methods. In fact, it should be the network operator who should decide which detection method should be used in the network and which should have a preference. One advantage of using SRV records for NAT64 detection is their Priority and Weight fields that allows to communicate such preference to a Node.</t>
+        
+        <t>In accordance with the latest detection method the <xref target="RFC8781"/>, other detection method should be treated equally to SRV method with following Priority and Weight fields:</t>
+        <texttable anchor="priorities" title="Default priorities of other methods">
+            <ttcol align='center'>Method</ttcol>
+            <ttcol align='center'>Priority</ttcol>
+            <ttcol align='center'>Weight</ttcol>
+            <c>RFC8115</c>
+            <c>100</c>
+            <c>0</c>
+            <c>RFC7225</c>
+            <c>150</c>
+            <c>0</c>
+            <c>RFC8781</c>
+            <c>200</c>
+            <c>0</c>
+            <c>RFC7050</c>
+            <c>250</c>
+            <c>0</c>
+        </texttable>
+        
+        <t>If a network operator prefers another method than the SRV method and wants to provide the SRV method as a fallback, it should set the priority field of the NAT64 SRV record to a higher value than specified for a method that should be used as a primary. For example, when a network operator uses Router Advertisement to distribute NAT64 prefix information to its network and also wants to use the SRV method as a fallback; it should set Priority field to number higher than 200.</t>
+        
+        <t>It is RECOMMENDED that network operators SHOULD NOT use values higher than 249 in the Priority field of the NAT64 SRV record unless they want to use <xref target="RFC7050"/> as a primary source of NAT64 prefix configuration, and they have all Nodes connected in their network properly configured for this. In order for this configuration to be safe, the Nodes MUST follow all the mandatory and optional requirements of both <xref target="RFC7050"/> and <xref target="RFC8880"/>. Otherwise, the <xref target="RFC7050"/> SHOULD NOT be used as a primary configuration source.</t>
+        
+        <t>Default priority values on Node SHOULD be user-configurable.</t>
+        
+        <t>A Node SHOULD start the NAT64 detection process by performing the SRV method. If it is successful and the SRV record Priority field value is lower than configured values for other methods, the Node MUST NOT use other detection methods. If the Priority value is higher than configured Priority value of any other methods, the Node SHOULD also perform detection methods with the lower priority values. Detection SHOULD be done starting from the lowest configured Priority value to the highest. The successful completion of any detection method MUST stop further detection.</t>
+        
+        <t>Similarly, the DNS64 function of the recursive resolver in use SHOULD be treated equally to the DNS64 SRV record with the Priority field value of 250. If the Node supports the DNS64 SRV record, Node is not performing DNS64 function, it is not using CLAT and the DNS64 SRV record has a lower Priority field value; the A record queries MUST be sent to the target of such SRV record instead of Node's default recursive resolver.</t>
+        
+        <t>Regardless of the detection method used for DNS64 discovery, the Node MUST NOT accept any DNS64 synthesized AAAA record outside detected NAT64 prefixes.</t>
+    </section>
+  </section>
+
+  <section title="Example"
+    anchor="example">
+    <t>The Node is a home router connected to the ISP network in which the NAT64/DNS64 is used, and the ISP has the following SRV records in their zones:
+        <list style="symbols">
+            <t>nat64.ipv6.example.com. IN SRV 5 10 9632 nat64-pool-1.example.com.</t>
+            <t>nat64-pool-1.example.com. IN AAAA 2001:db8:64:ff9b:1::c000:aa</t>
+            <t>nat64-pool-1.example.com. IN A 192.0.2.64</t>
+            <t>nat64.ipv6.example.com. IN SRV 10 10 9632 nat64-pool-2.example.com.</t>
+            <t>nat64-pool-2.example.com. IN AAAA 2001:db8:64:ff9b:2::c000:aa</t>
+            <t>nat64-pool-2.example.com. IN A 192.0.2.164</t>
+            <t>nat64.ipv6.example.net. IN SRV 10 10 9624 nat64-pool.example.net.</t>
+            <t>nat64-pool.example.net. IN AAAA 2001:db8:64:ff9b:abc::c000:aa</t>
+            <t>nat64-pool.example.net. IN A 198.51.100.0</t>
+            <t>nat64.ipv6.example.invalid. IN SRV 10 10 9624 nat64-pool.example.org.</t>
+            <t>nat64-pool.example.org. IN AAAA 2001:db8:64:ff9b:def::c000:aa</t>
+            <t>nat64-pool.example.org. IN A 203.0.113.0</t>
+        </list>
+    </t>
+    
+    <t>In addition, the zones "example.net" and "example.invalid" has got DNS64 SRV records:
+        <list style="symbols">
+            <t>dns64.tcp.example.net. IN SRV 5 10 53 dns64.example.net.</t>
+            <t>dns64.udp.example.net. IN SRV 10 10 53 dns64.example.net.</t>
+            <t>dns64.example.net. IN AAAA 2001:db8::53</t>
+            <t>dns64.udp.example.invalid. IN SRV 10 10 53 dns64.example.org.</t>
+            <t>dns64.example.org. IN AAAA 2001:db8:123::53</t>
+        </list>
+    </t>
+    
+    <t>The Node has detected the following list of domains:
+        <list style="format %d." counter="my_count">
+            <t>example.net</t>
+            <t>example.invalid</t>
+            <t>example.com</t>
+            <t>example.org</t>
+        </list>
+    </t>
+    
+    <t>The Node would fetch all available SRV records and their A and AAAA counterparts and sort them in the following order:
+    </t>
+    
+    <texttable anchor="det_pref" title="Detectected Prefixes">
+        <ttcol align='center'>Pool</ttcol>
+        <ttcol align='center'>DNSSEC</ttcol>
+        <ttcol align='center'>Priority</ttcol>
+        <ttcol align='center'>Reason</ttcol>
+        <c>nat64-pool-1.example.com.</c>
+        <c>yes</c>
+        <c>5</c>
+        <c>lowest priority field</c>
+        <c>nat64-pool.example.net.</c>
+        <c>yes</c>
+        <c>10</c>
+        <c>discovered first</c>
+        <c>nat64-pool-2.example.net.</c>
+        <c>yes</c>
+        <c>10</c>
+        <c>higher priority field</c>
+        <c>nat64-pool.example.org.</c>
+        <c>no</c>
+        <c>10</c>
+        <c>no valid DNSSEC chain</c>
+    </texttable>
+    
+    <t>After sorting, the DNSSEC validating Node SHOULD graylist any record which cannot be validated by the DNSSEC. This example would be "nat64-pool.example.org." because it has been obtained from insecure domain "example.invalid". Such pool SHOULD NOT be used if it is not confirmed by other DNSSEC secured record.</t>
+    
+    <t>If the Node can act as a recursive or caching DNS server and it is configured to provide the DNS64 service, it MUST provide this service using a sorted list of NAT64 pools. For such Node, the process of the NAT64/DNS64 ends here.</t>
+    
+    <t>However, when the Node is not capable of performing AAAA record synthesis or it is not configured to provide DNS64 service, and it is not using CLAT, it MUST perform detection of DNS64.</t>
+    
+    <t>When the Node supports the DNS64 SRV record, it MUST make a sorted list of DNS64 servers from the DNS64 SRV records. If the Priority field of the corresponding DNS64 record is higher than 250, and when the Node does not support the DNS64 SRV record; the Node MUST perform DNS64 detection for specified NAT64 pool by the <xref target="RFC7050"/> method.</t>
+    
+    <t>The detection, according to <xref target="RFC7050"/>, should be done by querying for "ipv4only.arpa". If the reply contains a pool listed in the NAT64 pool list, the corresponding entry is marked as having DNS64 provided by recursive DNS.</t>
+    
+    <t>The DNS64 sorted list would look like this:</t>
+    
+    <texttable anchor="det_dns" title="Detectected DNS64 Servers">
+        <ttcol align='center'>Server</ttcol>
+        <ttcol align='center'>Proto</ttcol>
+        <ttcol align='center'>DNSSEC</ttcol>
+        <ttcol align='center'>Priority</ttcol>
+        <ttcol align='center'>Reason</ttcol>
+        <c>dns64.example.net.</c>
+        <c>tcp</c>
+        <c>yes</c>
+        <c>5</c>
+        <c>lowest priority field</c>
+        <c>dns64.example.net.</c>
+        <c>udp</c>
+        <c>yes</c>
+        <c>10</c>
+        <c>higher priority field</c>
+        <c>dns64.example.org.</c>
+        <c>udp</c>
+        <c>no</c>
+        <c>10</c>
+        <c>no valid DNSSEC chain</c>
+    </texttable>
+    
+    <t>Sorting is done in the same fashion as any other SRV record with the same exception of graylisting records without a valid DNSSEC chain. Those SHOULD NOT be used when not confirmed by DNSSEC validated record and SHOULD be kept at the end of the list.
+    </t>
+    
+    <t>For example, when ISP is providing DNS64 service in their main DNS infrastructure only for pools in the domains "example.com" and "example.org" and the pool "nat64-pool.example.net" is used only with corresponding DNS64 server. The final sorted list of NAT64 prefixes used by the Node in the ISP network would be:</t>
+    
+    <texttable anchor="used_pref" title="Used Prefixes">
+        <ttcol align='center'>Pool</ttcol>
+        <ttcol align='center'>State</ttcol>
+        <ttcol align='center'>Priority</ttcol>
+        <ttcol align='center'>Reason</ttcol>
+        <c>nat64-pool-1.example.com.</c>
+        <c>active</c>
+        <c>5</c>
+        <c>lowest priority field</c>
+        <c>nat64-pool-2.example.net.</c>
+        <c>backup</c>
+        <c>10</c>
+        <c>higher priority field</c>
+        <c>nat64-pool.example.net.</c>
+        <c>active*</c>
+        <c>10</c>
+        <c>only DNS64 SRV capable Node</c>
+        <c>nat64-pool.example.org.</c>
+        <c>inactive</c>
+        <c>10</c>
+        <c>no valid DNSSEC chain</c>
+    </texttable>
+    
+    <t>As the pool "nat64-pool.example.net" is used only with the server "dns64.example.net", this would effectively make it usable only for Nodes supporting DNS64 SRV and not running DNS64 locally or not using CLAT. For such Nodes, this pool would have priority over others because lower Priority field value of the DNS64 SRV record.</t>
+    
+    <t>Now, the Node has successfully identified NAT64 pools and the DNS64 servers in the ISP infrastructure. The discovered prefixes SHOULD be considered safe, and DNSSEC validation of answers in these prefixes, when a remote recursive resolver does the DNS64 synthesis, it MUST be either disabled or performed by validating only the suffix.</t>
+
+  </section>
+
+  <section anchor="Acknowledgements" title="Acknowledgements">
+    <t>The author of this document would like to thank Lee Howard, Gert Doering, Fred Baker, Philip Homburg, Mikael Abrahamsson, Jordi Palet Martinez, Gabor Lencse, Dan Wing for their valuable comments.</t>
+  </section>
+
+   <!-- Possibly a 'Contributors' section ... -->
+
+  <section anchor="IANA" title="IANA Considerations">
+    <t>This document proposes two services, "_nat64" and "_dns64" in Service field of SRV RR (<xref target="RFC2782"/>).</t>
+  </section>
+
+  <section anchor="Security" title="Security Considerations">
+     <t>The method proposed by this document relies on security principles based on DNSSEC and secure discovery of local domain. In order to be secure, the network operator MUST deploy DNSSEC on at least one domain (advertised to the Node), establish a secure channel to this advertisement, or provide every IPv6 address given to a Node with DNSSEC secured PTR record.</t>
+  </section>
+</middle>
+
+ <!--  *****BACK MATTER ***** -->
+
+ <back>
+  <references title="Normative References">
+    <!--?rfc include="http://xml.resource.org/public/rfc/bibxml/reference.RFC.2119.xml"?-->
+    &RFC2119;
+    &RFC2782;
+    &RFC6146;
+    &RFC7050;
+    &RFC8174;
+  </references>
+
+  <references title="Informative References">
+    &RFC6052;
+    &RFC6877;
+    &RFC7225;
+    &RFC8106;
+    &RFC8115;
+    &RFC8484;
+    &RFC8781;
+    &RFC8880;
+ </references>
+
+  <!-- Change Log
+   v00 2019-05-7  IF Initial version 
+   2020-02-20 IF - Name change after adoption and typo fixes 
+   2020-03-27 IF - Updates after Bernie's review 
+   2020-08-19 IF - Updates after Ted Lemon's review 
+   2020-10-10 IF - WGLC updates included. Cleanup for publication
+   2021-01-04 IF - Updates aftr IESG review-->
+
+ </back>
+</rfc>
