@@ -1,8 +1,8 @@
 # Materials for IETF draft-x-v6ops-nat64-srv
 
-This repository comtains code which is not anywhere to final. There are no checks of input data so it is not safe to run in production. It is just proof of concept.
+This repository contains code that is not anywhere near to final. There are no checks of input data, so it is not safe to run in production. It is just proof of concept.
 
-If you want to test detection of NAT64/DNS64 you can add these records to you DNS zone file:
+If you want to test the detection of NAT64/DNS64, you can add these records to your DNS zone file:
 
 ```
  _nat64._ipv6            IN SRV  5 0 9632        nat64prefix1
