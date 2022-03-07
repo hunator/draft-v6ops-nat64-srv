@@ -22,7 +22,7 @@
 <?rfc sortrefs="yes"?>
 <?rfc compact="yes"?>
 <?rfc subcompact="no"?>
-<rfc category="std" docName="draft-hunek-v6ops-nat64-srv-00" 
+<rfc category="std" docName="draft-hunek-v6ops-nat64-srv-01" 
   ipr="trust200902">
 
 <front>
@@ -407,12 +407,8 @@
  </references>
 
   <!-- Change Log
-   v00 2019-05-7  IF Initial version 
-   2020-02-20 IF - Name change after adoption and typo fixes 
-   2020-03-27 IF - Updates after Bernie's review 
-   2020-08-19 IF - Updates after Ted Lemon's review 
-   2020-10-10 IF - WGLC updates included. Cleanup for publication
-   2021-01-04 IF - Updates aftr IESG review-->
+   v00 2021-11-17 - Initial version 
+   v01 2022-03-07 - Explicitly define the process of local domain detection from PTR records-->
 
  </back>
 </rfc>
