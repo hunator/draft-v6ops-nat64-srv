@@ -153,6 +153,8 @@
               <t>DHCPv6 options: 57, 24, 39, 74 or 118</t>
           </list>
       </t>
+      
+      <t>At least when detection of the local domain is done by the PTR record, a Node MUST consider not only its FQDN as the detected local domain. When there is no SRV record associated with the detected domain name, a Node MUST disregard the lowest level domain (part of the domain name until the first dot) and repeat the detection process. This MUST be repeated until there is an SRV record associated with the domain name (even the empty "." one) or until the second level domain is reached. The same process MAY be deployed for other sources as well.</t>
   </section>
 
   <section title="NAT64 service SRV record"
