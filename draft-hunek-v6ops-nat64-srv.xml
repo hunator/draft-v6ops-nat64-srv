@@ -22,7 +22,7 @@
 <?rfc sortrefs="yes"?>
 <?rfc compact="yes"?>
 <?rfc subcompact="no"?>
-<rfc category="std" docName="draft-hunek-v6ops-nat64-srv-01" 
+<rfc category="std" docName="draft-hunek-v6ops-nat64-srv-02" 
   ipr="trust200902">
 
 <front>
@@ -41,7 +41,7 @@
     </address>
   </author>
 
-  <date month="March" year="2022"/>
+  <date day="12" month="May" year="2022"/>
 
   <area>Internet</area>
 
@@ -154,7 +154,9 @@
           </list>
       </t>
       
-      <t>At least when detection of the local domain is done by the PTR record, a Node MUST consider not only its FQDN as the detected local domain. When there is no SRV record associated with the detected domain name, a Node MUST disregard the lowest level domain (part of the domain name until the first dot) and repeat the detection process. This MUST be repeated until there is an SRV record associated with the domain name (even the empty "." one) or until the second level domain is reached. The same process MAY be deployed for other sources as well.</t>
+      <t>At least when detection of the local domain is done by the PTR record, a Node MUST consider not only its FQDN as the detected local domain. When there is no SRV record associated with the detected domain name, a Node MUST disregard the lowest level domain (part of the domain name until the first dot) and repeat the detection process. This MUST be repeated until there is an SRV record associated with the domain name (even the empty "." one) or until the top level domain  for the respective FQDN is reached. This might be the second level domain, but it can also be the third level. Implementers MAY use tools like the Mozilla public suffix list (<xref target="PubSuffix"/>) to achieve that. The same process MAY be deployed for other domain detection sources as well.</t>
+      
+      <t>If a Node has more than one global IPv6 address, it MUST run PTR resolution for every address with a stable suffix. If a Node uses temporary address suffixes, a Node SHOULD perform just one PTR resolution for every network prefix. If a Node is using both stable suffixes and temporary suffixes in a single network prefix, only the stable ones MUST be used for PTR resolution.</t>
   </section>
 
   <section title="NAT64 service SRV record"
@@ -227,9 +229,11 @@
         
         <t>Default priority values on Node SHOULD be user-configurable.</t>
         
-        <t>A Node SHOULD start the NAT64 detection process by performing the SRV method. If it is successful and the SRV record Priority field value is lower than configured values for other methods, the Node MUST NOT use other detection methods. If the Priority value is higher than configured Priority value of any other methods, the Node SHOULD also perform detection methods with the lower priority values. Detection SHOULD be done starting from the lowest configured Priority value to the highest. The successful completion of any detection method MUST stop further detection.</t>
+        <t>A Node MAY start the NAT64 detection process by performing the SRV method. If it is successful and the SRV record Priority field value is lower than configured values for other methods, the Node MUST NOT use other detection methods (or utilize information received by them). If the Priority value is higher than configured Priority value of any other methods, the Node SHOULD also perform detection methods with the lower priority values. Detection SHOULD be done starting from the lowest configured Priority value to the highest. The successful completion of any detection method MUST stop further detection.</t>
         
         <t>Similarly, the DNS64 function of the recursive resolver in use SHOULD be treated equally to the DNS64 SRV record with the Priority field value of 250. If the Node supports the DNS64 SRV record, Node is not performing DNS64 function, it is not using CLAT and the DNS64 SRV record has a lower Priority field value; the A record queries MUST be sent to the target of such SRV record instead of Node's default recursive resolver.</t>
+        
+        <t>If the network configuration time for NAT64 is more important than prefix stability, a Node MAY perform other detection methods simultaneously with this SRV method. When a Node receives NAT64 prefix by method with a higher priority (lower Priority field value), a Node MUST respect the method Priority field, and it MUST stop using configuration information received by a method with a lower priority (a higher Priority field value). However, by doing so, it can resolve several NAT64 prefix configuration changes as methods with higher priorities would override those with lower ones. This may result in several prefixes being used in a short time. For this reason, it is NOT RECOMMENDED to act upon any detection method that can be overwritten by a method with a higher priority unless the configuration of the NAT64 prefix is time-critical.</t>
         
         <t>Regardless of the detection method used for DNS64 discovery, the Node MUST NOT accept any DNS64 synthesized AAAA record outside detected NAT64 prefixes.</t>
     </section>
@@ -239,16 +243,16 @@
     anchor="example">
     <t>The Node is a home router connected to the ISP network in which the NAT64/DNS64 is used, and the ISP has the following SRV records in their zones:
         <list style="symbols">
-            <t>nat64.ipv6.example.com. IN SRV 5 10 9632 nat64-pool-1.example.com.</t>
+            <t>_nat64._ipv6.example.com. IN SRV 5 10 9632 nat64-pool-1.example.com.</t>
             <t>nat64-pool-1.example.com. IN AAAA 2001:db8:64:ff9b:1::c000:aa</t>
             <t>nat64-pool-1.example.com. IN A 192.0.2.64</t>
-            <t>nat64.ipv6.example.com. IN SRV 10 10 9632 nat64-pool-2.example.com.</t>
+            <t>_nat64._ipv6.example.com. IN SRV 10 10 9632 nat64-pool-2.example.com.</t>
             <t>nat64-pool-2.example.com. IN AAAA 2001:db8:64:ff9b:2::c000:aa</t>
             <t>nat64-pool-2.example.com. IN A 192.0.2.164</t>
-            <t>nat64.ipv6.example.net. IN SRV 10 10 9624 nat64-pool.example.net.</t>
+            <t>_nat64._ipv6.example.net. IN SRV 10 10 9624 nat64-pool.example.net.</t>
             <t>nat64-pool.example.net. IN AAAA 2001:db8:64:ff9b:abc::c000:aa</t>
             <t>nat64-pool.example.net. IN A 198.51.100.0</t>
-            <t>nat64.ipv6.example.invalid. IN SRV 10 10 9624 nat64-pool.example.org.</t>
+            <t>_nat64._ipv6.example.invalid. IN SRV 10 10 9624 nat64-pool.example.org.</t>
             <t>nat64-pool.example.org. IN AAAA 2001:db8:64:ff9b:def::c000:aa</t>
             <t>nat64-pool.example.org. IN A 203.0.113.0</t>
         </list>
@@ -256,10 +260,10 @@
     
     <t>In addition, the zones "example.net" and "example.invalid" has got DNS64 SRV records:
         <list style="symbols">
-            <t>dns64.tcp.example.net. IN SRV 5 10 53 dns64.example.net.</t>
-            <t>dns64.udp.example.net. IN SRV 10 10 53 dns64.example.net.</t>
+            <t>_dns64._tcp.example.net. IN SRV 5 10 53 dns64.example.net.</t>
+            <t>_dns64._udp.example.net. IN SRV 10 10 53 dns64.example.net.</t>
             <t>dns64.example.net. IN AAAA 2001:db8::53</t>
-            <t>dns64.udp.example.invalid. IN SRV 10 10 53 dns64.example.org.</t>
+            <t>_dns64._udp.example.invalid. IN SRV 10 10 53 dns64.example.org.</t>
             <t>dns64.example.org. IN AAAA 2001:db8:123::53</t>
         </list>
     </t>
@@ -365,11 +369,29 @@
     <t>As the pool "nat64-pool.example.net" is used only with the server "dns64.example.net", this would effectively make it usable only for Nodes supporting DNS64 SRV and not running DNS64 locally or not using CLAT. For such Nodes, this pool would have priority over others because lower Priority field value of the DNS64 SRV record.</t>
     
     <t>Now, the Node has successfully identified NAT64 pools and the DNS64 servers in the ISP infrastructure. The discovered prefixes SHOULD be considered safe, and DNSSEC validation of answers in these prefixes, when a remote recursive resolver does the DNS64 synthesis, it MUST be either disabled or performed by validating only the suffix.</t>
+    
+    <section anchor="Negative" title="Example of negative records">
+      <t>The proposed method allows specifying negative records for the NAT64 prefix. This can be used to specify that a single Node should not use the NAT64 prefix, that the whole subdomain is not allowed to use NAT64, that the whole domain/operator is not using NAT64, or as a last resort indication that non-specified Nodes/subdomains are not allowed to use NAT64. The meaning of a negative record is given by its placement in the zone and other positive replies (pointing to a valid AAAA record).</t>
+      
+      <list style="symbols">
+        <t>_nat64._ipv6.example.com. IN SRV 5 10 0 .</t>
+        <t>_nat64._ipv6.clients.example.com. IN SRV 5 10 9632 nat64-pool-1.example.com.</t>
+        <t>_nat64._ipv6.bad-host1.clients.example.com. IN SRV 5 10 0 .</t>
+        <t>_nat64._ipv6.bad-host2.clients.example.com. IN SRV 255 10 0 .</t>
+      </list>
+      
+      <t>The list shows a possible use of negative records. Every Node in the "clients" subdomain is given a NAT64 prefix provided by the "nat64-pool-1" AAAA record, except for the "bad-host1" and "bad-host2" Nodes that are given negative records. This indicates to those Nodes that there is no NAT64 prefix, so no NAT64 service is provided to them. This way, an operator is able to disable the NAT64 service to individual Nodes.</t>
+      
+      <t>The difference between "bad-host1" and "bad-host2" is in the Priority field. Because of that, the "bad-host1" Node MUST NOT use other detection methods for NAT64 detection, while "bad-host2" MAY utilize any other method.</t>
+      
+      <t>By placing the negative answer to the root of the operator's domain, the operator specifies that only listed Nodes or subdomains are allowed to use NAT64. Similarly, if the operator specified a positive record, non-listed Nodes would default to using such prefix. Basically, this allows to form policies like allowlists and blocklists and combine them.</t>
+      
+    </section>
 
   </section>
 
   <section anchor="Acknowledgements" title="Acknowledgements">
-    <t>The author of this document would like to thank Lee Howard, Gert Doering, Fred Baker, Philip Homburg, Mikael Abrahamsson, Jordi Palet Martinez, Gabor Lencse, Dan Wing for their valuable comments.</t>
+    <t>The author of this document would like to thank Lee Howard, Gert Doering, Fred Baker, Philip Homburg, Mikael Abrahamsson, Jordi Palet Martinez, Gabor Lencse, Dan Wing, Ralf Weber for their valuable comments.</t>
   </section>
 
    <!-- Possibly a 'Contributors' section ... -->
@@ -380,6 +402,7 @@
 
   <section anchor="Security" title="Security Considerations">
      <t>The method proposed by this document relies on security principles based on DNSSEC and secure discovery of local domain. In order to be secure, the network operator MUST deploy DNSSEC on at least one domain (advertised to the Node), establish a secure channel to this advertisement, or provide every IPv6 address given to a Node with DNSSEC secured PTR record.</t>
+     
   </section>
 </middle>
 
@@ -404,11 +427,21 @@
     &RFC8484;
     &RFC8781;
     &RFC8880;
+    <reference anchor="PubSuffix" target="https://publicsuffix.org/">
+        <front>
+            <title>Public Suffix List</title>
+            <author initials="" surname="" fullname="">
+              <organization>Mozilla</organization>
+            </author>
+            <date month="April" year="2022" />
+        </front>
+    </reference>
  </references>
 
   <!-- Change Log
    v00 2021-11-17 - Initial version 
-   v01 2022-03-07 - Explicitly define the process of local domain detection from PTR records-->
+   v01 2022-03-07 - Explicitly define the process of local domain detection from PTR records
+   v02 2022-05-12 - Input from IETF113: Example of negative records, concurrent detection, multiple addresses, and third-level detection stops via Mozilla public suffix list (like in the case of co.uk.)-->
 
  </back>
 </rfc>
