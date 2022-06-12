@@ -4,6 +4,7 @@
 <!ENTITY RFC2782 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.2782.xml">
 <!ENTITY RFC6052 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.6052.xml">
 <!ENTITY RFC6146 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.6146.xml">
+<!ENTITY RFC6763 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.6763.xml">
 <!ENTITY RFC6877 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.6877.xml">
 <!ENTITY RFC7050 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.7050.xml">
 <!ENTITY RFC7225 SYSTEM "http://xml.resource.org/public/rfc/bibxml/reference.RFC.7225.xml">
@@ -22,7 +23,7 @@
 <?rfc sortrefs="yes"?>
 <?rfc compact="yes"?>
 <?rfc subcompact="no"?>
-<rfc category="std" docName="draft-hunek-v6ops-nat64-srv-02" 
+<rfc category="std" docName="draft-hunek-v6ops-nat64-srv-03" 
   ipr="trust200902">
 
 <front>
@@ -41,7 +42,7 @@
     </address>
   </author>
 
-  <date day="12" month="May" year="2022"/>
+  <date day="12" month="June" year="2022"/>
 
   <area>Internet</area>
 
@@ -166,7 +167,7 @@
     <t>_nat64._ipv6.Name TTL Class SRV Priority Weight Port Target
     </t>
     
-    <t>The TTL, Class, Priority, and Weight follow the same scheme as defined in <xref target="RFC2782"/> and have their standard meaning.</t>
+    <t>The TTL, Class, Priority, and Weight follow the same scheme as defined in <xref target="RFC2782"/> and have their standard meaning. The service name follows the naming convention defined in <xref target="RFC6763"/>.</t>
     
     <t>Port: IPv6 as L3 protocol does not use port numbers. Because of that, this field SHOULD be either set to zero or SHOULD be used to indicate the length of network prefix length in both IPv6 and IPv4 protocol, used for NAT64. In such a case, the port 16b integer MUST be constructed by directly appending IPv4 pool prefix length after the IPv6 prefix length decimally. Usually, this would mean 9632, stating that the IPv6 prefix with a length of /96 is translated into a single IPv4 address (/32).</t>
     
@@ -391,7 +392,7 @@
   </section>
 
   <section anchor="Acknowledgements" title="Acknowledgements">
-    <t>The author of this document would like to thank Lee Howard, Gert Doering, Fred Baker, Philip Homburg, Mikael Abrahamsson, Jordi Palet Martinez, Gabor Lencse, Dan Wing, Ralf Weber for their valuable comments.</t>
+    <t>The author of this document would like to thank Lee Howard, Gert Doering, Fred Baker, Philip Homburg, Mikael Abrahamsson, Jordi Palet Martinez, Gabor Lencse, Dan Wing, Ralf Weber, Ted Lemon for their valuable comments.</t>
   </section>
 
    <!-- Possibly a 'Contributors' section ... -->
@@ -414,6 +415,7 @@
     &RFC2119;
     &RFC2782;
     &RFC6146;
+    &RFC6763;
     &RFC7050;
     &RFC8174;
   </references>
@@ -441,7 +443,8 @@
   <!-- Change Log
    v00 2021-11-17 - Initial version 
    v01 2022-03-07 - Explicitly define the process of local domain detection from PTR records
-   v02 2022-05-12 - Input from IETF113: Example of negative records, concurrent detection, multiple addresses, and third-level detection stops via Mozilla public suffix list (like in the case of co.uk.)-->
+   v02 2022-05-12 - Input from IETF113: Example of negative records, concurrent detection, multiple addresses, and third-level detection stops via Mozilla public suffix list (like in the case of co.uk.)
+   v03 2022-06-12 - Added reference to RFC6763-->
 
  </back>
 </rfc>
