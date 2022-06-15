@@ -23,5 +23,5 @@ If you want to test the detection of NAT64/DNS64, you can add these records to y
 
 Then you can run nat64_srv.py and test it yourself.
 
-Or you can test it on our hostname 'lbcfree.cz' or 'www.lbcfree.cz' or any other subdomain.
+Or you can test it on our hostname 'lbcfree.net' or 'www.lbcfree.net' or any other subdomain.
 
